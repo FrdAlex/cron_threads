@@ -6,7 +6,7 @@ import sys
 from croniter import croniter
 import importlib
 
-os.chdir(os.path.dirname(__file__))
+#os.chdir(os.path.dirname(__file__))
 
 class WorkerModes(Enum):
     COMMAND = 0,
@@ -23,7 +23,7 @@ class WorkerThread(threading.Thread):
         self.func_name = func_name
         self.cron_iter = croniter(cron_schedule, start_time=time.time())
         self.exit_code = 0
-        self.signal_file = f"{self.name}.txt"
+        self.shutdown_flag = threading.Event()
         self.args = args
         self.kwargs = kwargs
 
@@ -45,7 +45,6 @@ class WorkerThread(threading.Thread):
                 self.worker_task()
               
     def worker_task(self):
-        print("work ", self.name)
         if self.mode == WorkerModes.COMMAND:
             os.system(self.exec)
         elif self.mode == WorkerModes.FILE:
@@ -56,16 +55,16 @@ class WorkerThread(threading.Thread):
             self.exec(*self.args, **self.kwargs)
         
     def should_stop(self):
-        if os.path.exists(self.signal_file):
+        if self.shutdown_flag.is_set():
             return True
         return False
     
     def __do_stop(self):
         print(f"Thread '{self.name}' received signal, closing...")
-        os.remove(self.signal_file)
         self.exit_code = -1  # Example exit code
         print(f"Thread '{self.name}' finished with exit code {self.exit_code}")
         self.parent.thread_exit_codes[self.name] = self.exit_code
+        sys.exit()
 
 
 class ThreadManager():
@@ -83,8 +82,7 @@ class ThreadManager():
 
     def stop_thread(self, name):
         if name in self.threads:
-            signal_file = f"{name}.txt"
-            open(signal_file, "w").close()
+            self.threads[name].shutdown_flag.set()
             print(f"Signal sent to thread '{name}'")
         else:
             print(f"Thread '{name}' not found")
@@ -101,6 +99,7 @@ class ThreadManager():
     
     def stop_manage(self):
         if self.thread != None:
+            self.kill_all_threads()
             self.close_main_thread = True
         
     def __begin(self):
@@ -136,35 +135,26 @@ class ThreadManager():
             data = {"name": name, "exit_code": ret_code}
             return data
     
-    def get_running_threads():
-        pass
+    def get_running_threads(self):
+        ret = []
+        for thread_name in self.threads:
+            ret.append(thread_name)
+        return ret
 
-    def kill_all_threads():
-        pass
+    def kill_all_threads(self):
+        for thread_name in self.threads.keys():
+            self.stop_thread(thread_name)
         
 def internal(*args, **kwargs):
     print(kwargs["group"])
-    print("it lives")
         
 manager = ThreadManager()
 manager.begin_manage()
 # Example usage
-#manager.start_thread("thread1", "* * * * *",WorkerModes.COMMAND,"dir")
+manager.start_thread("thread1", "* * * * *",WorkerModes.COMMAND,"dir")
 #manager.start_thread("thread2", "* * * * *",WorkerModes.FILE,"lol","run")
 manager.start_thread("thread3", "* * * * *",WorkerModes.INTERNAL,internal,None, group = "123")
 
-#time.sleep(10)
-
-#manager.stop_thread("thread1")
-
-#time.sleep(120)
-
-#manager.start_thread("thread3", "woo", "hoo", "* * * * *")
-
-#time.sleep(180)
-
-manager.stop_thread("thread2")
-#manager.stop_thread("thread3")
 while True:
     try:
         if manager.have_tasks_exited():
