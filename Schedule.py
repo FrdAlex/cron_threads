@@ -17,13 +17,19 @@ class WorkerThread(threading.Thread):
         if cron_schedule != None and not croniter.is_valid(cron_schedule):
             print("Cron Schedule is not valid !")
             return None
+        if cron_schedule == None or cron_schedule == "":
+            self.oneshot = True
+            self.cron_iter = None
+        else:
+            self.oneshot = False
+            self.cron_iter = croniter(cron_schedule, start_time=time.time())
         self.parent = parent
         self.name = name
         self.mode = mode
         self.exec = exec
         self.func_name = func_name
         self.cron_schedule = cron_schedule
-        self.cron_iter = croniter(cron_schedule, start_time=time.time())
+        
         self.exit_code = 0
         self.shutdown_flag = threading.Event()
         self.args = args
@@ -34,6 +40,9 @@ class WorkerThread(threading.Thread):
     def run(self):
         print(f"Thread '{self.name}' started ")
         while True:
+
+            start_time = time.time()
+
             if self.cron_schedule != None:
                 next_run = self.cron_iter.get_next(float)
                 delay = max(0, next_run - time.time())
@@ -47,10 +56,22 @@ class WorkerThread(threading.Thread):
                     self.__do_stop(0)
                     break
                 else:
-                    self.worker_task()
+                    ret = self.worker_task()
+                    self.parent.task_exit_info.append(self.__prepare_task_info(start_time, ret))
             else:
                 ret = self.worker_task()
+                self.parent.task_exit_info.append(self.__prepare_task_info(start_time, ret))
                 self.__do_stop(ret, True)
+    
+    def __prepare_task_info(self, start_time, ret):
+        data = {
+            "name": self.name,
+            "exit_code": ret,
+            "start_time": start_time,
+            "finish_time": time.time(),
+            "oneshot" : self.oneshot
+        }
+        return data
               
     def worker_task(self):
         self.currently_running = True
@@ -86,6 +107,7 @@ class ThreadManager():
     # Dictionary to store threads and their exit codes
     threads = {}
     thread_exit_codes = {}
+    task_exit_info = []
     clean_threads = []
     thread = None
     close_main_thread = False
@@ -140,13 +162,26 @@ class ThreadManager():
             self.thread_exit_codes = {}
             time.sleep(5)
     
-    def have_tasks_exited(self):
+    def have_threads_exited(self):
         if len(self.clean_threads) > 0:
+            return True
+        return False
+    
+    def have_tasks_exited(self):
+        if len(self.task_exit_info) > 0:
             return True
         return False
     
     def get_task_exit_info(self):
         if self.have_tasks_exited():
+            task_found = self.task_exit_info.pop(0)
+            name = task_found["name"]
+            ret_code = task_found["exit_code"]
+            data = {"name": name, "exit_code": ret_code}
+            return data
+    
+    def get_thread_exit_info(self):
+        if self.have_threads_exited():
             thread_found = self.clean_threads.pop(0)
             name = thread_found["name"]
             ret_code = thread_found["exit_code"]
@@ -178,5 +213,5 @@ manager = ThreadManager()
 # Example usage
 #manager.start_thread("thread1", "* * * * *",WorkerModes.COMMAND,"dir")
 #manager.start_thread("thread2", "* * * * *",WorkerModes.FILE,"lol","run")
-manager.start_thread("thread3", "* * * * *",WorkerModes.INTERNAL,internal,None, group = "123")
+manager.start_thread("thread3", None, WorkerModes.INTERNAL, internal, None, "123")
 
