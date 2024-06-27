@@ -9,6 +9,27 @@ import importlib
 from subprocess import call
 from subprocess import Popen, PIPE
 
+from functools import wraps
+
+def enforce_return_count(expected_count):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            if not isinstance(result, tuple):
+                result = (result,)
+            
+            actual_count = len(result)
+            
+            if actual_count < expected_count:
+                result = result + (None,) * (expected_count - actual_count)
+            elif actual_count > expected_count:
+                raise ValueError(f"Expected {expected_count} return values, but got {actual_count}")
+            
+            return result
+        return wrapper
+    return decorator
+
 # custom system command
 def system_cmd(command):
     process = Popen(args=command, stdout=PIPE, stderr=PIPE, shell=True) #cwd is working directory
