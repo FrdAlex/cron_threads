@@ -3,105 +3,23 @@ import threading
 import os
 import time
 import sys
+import json
 from croniter import croniter
 import importlib
+from subprocess import call
+from subprocess import Popen, PIPE
+
+# custom system command
+def system_cmd(command):
+    process = Popen(args=command, stdout=PIPE, stderr=PIPE, shell=True) #cwd is working directory
+    out, err = process.communicate()
+    retcode = process.poll()
+    return retcode, out.decode("utf-8"), err.decode("utf-8")
 
 class WorkerModes(Enum):
     COMMAND = 0,
     FILE = 1,
     INTERNAL = 2
-
-class WorkerThread(threading.Thread):
-    def __init__(self, parent, name, cron_schedule, mode, exec, func_name = None, *args, **kwargs):
-        super().__init__()
-        if cron_schedule != None and not croniter.is_valid(cron_schedule):
-            print("Cron Schedule is not valid !")
-            return None
-        if cron_schedule == None or cron_schedule == "":
-            self.oneshot = True
-            self.cron_iter = None
-        else:
-            self.oneshot = False
-            self.cron_iter = croniter(cron_schedule, start_time=time.time())
-        self.parent = parent
-        self.name = name
-        self.mode = mode
-        self.exec = exec
-        self.func_name = func_name
-        self.cron_schedule = cron_schedule
-        
-        self.exit_code = 0
-        self.shutdown_flag = threading.Event()
-        self.args = args
-        self.kwargs = kwargs
-        self.currently_running = False
-        
-
-    def run(self):
-        print(f"Thread '{self.name}' started ")
-        while True:
-
-            start_time = time.time()
-
-            if self.cron_schedule != None:
-                next_run = self.cron_iter.get_next(float)
-                delay = max(0, next_run - time.time())
-
-                for i in range(0,int(delay)):
-                    if self.should_stop():
-                        break
-                    time.sleep(1)
-
-                if self.should_stop():
-                    self.__do_stop(0)
-                    break
-                else:
-                    ret = self.worker_task()
-                    self.parent.task_exit_info.append(self.__prepare_task_info(start_time, ret))
-            else:
-                ret = self.worker_task()
-                self.parent.task_exit_info.append(self.__prepare_task_info(start_time, ret))
-                self.__do_stop(ret, True)
-    
-    def __prepare_task_info(self, start_time, ret):
-        data = {
-            "name": self.name,
-            "exit_code": ret,
-            "start_time": start_time,
-            "finish_time": time.time(),
-            "oneshot" : self.oneshot
-        }
-        return data
-              
-    def worker_task(self):
-        self.currently_running = True
-        try:
-            if self.mode == WorkerModes.COMMAND:
-                return os.system(self.exec)
-            elif self.mode == WorkerModes.FILE:
-                module = importlib.import_module(self.exec)
-                method = getattr(module, self.func_name)
-                return method()
-            elif self.mode == WorkerModes.INTERNAL:
-                return self.exec(*self.args, **self.kwargs)
-        except Exception as e:
-            with open(self.name + "_errors.txt", 'w') as err_writer:
-                err_writer.write(time.ctime(time.time())," : ", e)
-        self.currently_running = False
-        
-    def should_stop(self):
-        if self.shutdown_flag.is_set():
-            return True
-        return False
-    
-    def __do_stop(self, ret = 0, one_shot = False):
-        if not one_shot:
-            print(f"Thread '{self.name}' received signal, closing...")
-        self.exit_code = ret
-        print(f"Thread '{self.name}' finished with exit code {self.exit_code}")
-        self.parent.thread_exit_codes[self.name] = self.exit_code
-        sys.exit(ret)
-
 
 class ThreadManager():
     # Dictionary to store threads and their exit codes
@@ -205,9 +123,111 @@ class ThreadManager():
         for thread_name in self.threads.keys():
             self.stop_thread(thread_name)
         
+    def save_to_disk_status(self):
+        data = {}
+        with open("thread_manager_status.json") as status:
+            data["threads"] = self.get_existing_threads()
+            data["currently_running"] = self.get_running_threads()
+            status.write(json.dump(data, indent=4, sort_keys=True))
+
+class WorkerThread(threading.Thread):
+    def __init__(self, parent: ThreadManager, name, cron_schedule, mode, exec, func_name = None, *args, **kwargs):
+        super().__init__()
+        if cron_schedule != None and not croniter.is_valid(cron_schedule):
+            print("Cron Schedule is not valid !")
+            return None
+        if cron_schedule == None or cron_schedule == "":
+            self.oneshot = True
+            self.cron_iter = None
+        else:
+            self.oneshot = False
+            self.cron_iter = croniter(cron_schedule, start_time=time.time())
+        self.parent = parent
+        self.name = name
+        self.mode = mode
+        self.exec = exec
+        self.func_name = func_name
+        self.cron_schedule = cron_schedule
+        
+        self.exit_code = 0
+        self.shutdown_flag = threading.Event()
+        self.args = args
+        self.kwargs = kwargs
+        self.currently_running = False
+        
+
+    def run(self):
+        print(f"Thread '{self.name}' started ")
+        while True:
+
+            start_time = time.time()
+
+            if self.cron_schedule != None:
+                next_run = self.cron_iter.get_next(float)
+                delay = max(0, next_run - time.time())
+
+                for i in range(0,int(delay)):
+                    if self.should_stop():
+                        break
+                    time.sleep(1)
+
+                if self.should_stop():
+                    self.__do_stop(0)
+                    break
+                else:
+                    ret, out, err = self.worker_task()
+                    self.parent.task_exit_info.append(self.__prepare_task_info(start_time, ret, out, err))
+            else:
+                ret, out, err = self.worker_task()
+                self.parent.task_exit_info.append(self.__prepare_task_info(start_time, ret, out, err))
+                self.__do_stop(ret, True)
+    
+    def __prepare_task_info(self, start_time, ret, output=None, error=None):
+        data = {
+            "name": self.name,
+            "exit_code": ret,
+            "start_time": start_time,
+            "finish_time": time.time(),
+            "output": output,
+            "error": error,
+            "oneshot" : self.oneshot
+        }
+        return data
+              
+    def worker_task(self):
+        self.currently_running = True
+        try:
+            if self.mode == WorkerModes.COMMAND:
+                return system_cmd(self.exec)
+            elif self.mode == WorkerModes.FILE:
+                module = importlib.import_module(self.exec)
+                method = getattr(module, self.func_name)
+                return method() # should return exit_code, output, error in that order
+            elif self.mode == WorkerModes.INTERNAL:
+                return self.exec(*self.args, **self.kwargs) # should return exit_code, output, error in that order
+        except Exception as e:
+            with open(self.name + "_errors.txt", 'w') as err_writer:
+                err_writer.write(time.ctime(time.time())," : ", e)
+        self.currently_running = False
+        
+    def should_stop(self):
+        if self.shutdown_flag.is_set():
+            return True
+        return False
+    
+    def __do_stop(self, ret = 0, one_shot = False):
+        if not one_shot:
+            print(f"Thread '{self.name}' received signal, closing...")
+        self.exit_code = ret
+        print(f"Thread '{self.name}' finished with exit code {self.exit_code}")
+        self.parent.thread_exit_codes[self.name] = self.exit_code
+        if one_shot:
+            del self.parent.threads[self.name]
+        sys.exit(ret)
+
 def internal(group):
     print(group)
-        
+
 manager = ThreadManager()
 #manager.begin_manage()
 # Example usage
