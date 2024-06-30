@@ -203,7 +203,7 @@ class ThreadManager():
         """Retrieve a list of all threads in which tasks are currently running"""
 
         ret = []
-        for thread_name in self.threads.keys(): 
+        for thread_name in self.threads.keys():
             if self.threads[thread_name].currently_running:
                 ret.append(thread_name)
         return ret
@@ -211,7 +211,7 @@ class ThreadManager():
     def kill_all_threads(self):
         """Stop all threads"""
 
-        for thread_name in self.threads.keys(): 
+        for thread_name in self.threads.keys():
             self.stop_thread(thread_name)
 
     def save_to_disk_status(self):
@@ -242,7 +242,6 @@ class WorkerThread(threading.Thread):
         self.to_exec = to_exec
         self.func_name = func_name
         self.cron_schedule = cron_schedule
-        
         self.exit_code = 0
         self.shutdown_flag = threading.Event()
         self.args = args
@@ -294,11 +293,11 @@ class WorkerThread(threading.Thread):
         try:
             if self.mode == WorkerModes.COMMAND:
                 return system_cmd(self.to_exec)
-            elif self.mode == WorkerModes.FILE:
+            if self.mode == WorkerModes.FILE:
                 module = importlib.import_module(self.to_exec)
                 method = getattr(module, self.func_name)
                 return method() # should return exit_code, output, error in that order
-            elif self.mode == WorkerModes.INTERNAL:
+            if self.mode == WorkerModes.INTERNAL:
                 return self.to_exec(*self.args, **self.kwargs) # should return exit_code, output, error in that order
         except Exception as e:
             print(e)
@@ -319,4 +318,3 @@ class WorkerThread(threading.Thread):
         if one_shot:
             del self.parent.threads[self.name]
         sys.exit(ret)
-
