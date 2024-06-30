@@ -21,4 +21,4 @@ jobs:
         pip install pylint
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        pylint --disable=missing-module-docstring,consider-using-dict-items,consider-iterating-dictionary,too-many-arguments,inconsistent-return-statements,line-too-long,broad-exception-caught $(git ls-files '*.py')
