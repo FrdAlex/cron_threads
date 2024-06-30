@@ -1,4 +1,4 @@
-from cron_threads import ThreadManager, WorkerModes # pylint: disable=import-error
+from cron_threads import ThreadManager, WorkerModes # pylint: disable=import-error,no-name-in-module
 
 def internal(group):
     """example function to just print whatever is given as argument"""
