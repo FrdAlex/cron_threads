@@ -287,6 +287,7 @@ class WorkerThread(threading.Thread):
         }
         return data
 
+    @enforce_return_count(3)
     def worker_task(self):
         """This methods contains the actual logic on how to run a task"""
         self.currently_running = True
