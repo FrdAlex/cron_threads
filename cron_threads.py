@@ -70,7 +70,7 @@ class ThreadManager():
     thread = None
     close_main_thread = False
 
-    def start_thread(self, name:str, cron_schedule:str, mode:int, to_exec, *args, func_name = None, **kwargs):
+    def start_thread(self, name:str, cron_schedule:str, mode:int, to_exec, func_name = None, *args, **kwargs):
         """Start a Thread. If a cron schedule is provided it will run the task inside at the specified time.
            If no cron schedule is provided, it will execute once then the thread will close.
 
@@ -225,7 +225,7 @@ class ThreadManager():
 class WorkerThread(threading.Thread):
     """Class that represents the actual thread being run"""
 
-    def __init__(self, parent: ThreadManager, name, cron_schedule, mode, to_exec, *args, func_name = None, **kwargs):
+    def __init__(self, parent: ThreadManager, name, cron_schedule, mode, to_exec, func_name = None, *args,  **kwargs):
         super().__init__()
         if cron_schedule is not None and not croniter.is_valid(cron_schedule):
             print("Cron Schedule is not valid !")

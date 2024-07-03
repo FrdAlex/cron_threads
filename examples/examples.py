@@ -9,4 +9,4 @@ manager.begin_manage()
 # Example usage
 manager.start_thread("thread1", "* * * * *",WorkerModes.COMMAND,"dir")
 manager.start_thread("thread2", "* * * * *",WorkerModes.FILE,"file_name",func_name="run")
-manager.start_thread("thread3", None, WorkerModes.INTERNAL, internal, "123")
+manager.start_thread("thread3", None, WorkerModes.INTERNAL, internal, None, "123")

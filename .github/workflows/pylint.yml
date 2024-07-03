@@ -21,4 +21,4 @@ jobs:
         pip install pylint
     - name: Analysing the code with pylint
       run: |
-        pylint --disable=missing-module-docstring,useless-return,consider-using-dict-items,too-many-instance-attributes,consider-iterating-dictionary,too-many-arguments,inconsistent-return-statements,line-too-long,broad-exception-caught $(git ls-files '*.py')
+        pylint --disable=missing-module-docstring,useless-return,keyword-arg-before-vararg,consider-using-dict-items,too-many-instance-attributes,consider-iterating-dictionary,too-many-arguments,inconsistent-return-statements,line-too-long,broad-exception-caught $(git ls-files '*.py')

@@ -42,7 +42,7 @@ manager.begin_manage()
 # Example usage
 manager.start_thread("thread1", "* * * * *",WorkerModes.COMMAND,"dir") # run the dir command as a separate shell
 manager.start_thread("thread2", "* * * * *",WorkerModes.FILE,"file_name",func_name="run") # run a separate function from within another python script
-manager.start_thread("thread3", None, WorkerModes.INTERNAL, internal, "123") # use an internal function as the task of the thread
+manager.start_thread("thread3", None, WorkerModes.INTERNAL, internal, None, "123") # use an internal function as the task of the thread
 
 manager.stop_thread("thread1") # will send a signal to the tread to close. If the task of the thread is running, it will wait for the task to finish, then close the thread
 
