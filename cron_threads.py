@@ -299,7 +299,7 @@ class WorkerThread(threading.Thread):
                 method = getattr(module, self.func_name)
                 return method() # should return exit_code, output, error in that order
             if self.mode == WorkerModes.INTERNAL:
-                return self.to_exec(self, *self.args, **self.kwargs) # should return exit_code, output, error in that order
+                return self.to_exec(*self.args, **self.kwargs) # should return exit_code, output, error in that order
         except Exception as e:
             print(e)
         self.currently_running = False
